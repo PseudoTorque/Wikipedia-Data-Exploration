@@ -136,7 +136,7 @@ def add_hyperlink_to_hyperlinks(hyperlinks: list[Models.Hyperlink]):
     session.commit()
 
     session.close()
-def process(rate_limits: list[int], last_refreshed_rate_limits: list[float], content_buffer: list, hyperlink_buffer: list, scraped_count: int, average_hyperlinks_per_page: float):
+def process(rate_limits: list[int], last_refreshed_rate_limits: list[float], content_buffer: list, hyperlink_buffer: list, scraped_count: int, average_hyperlinks_per_page: float, database_hits: int, buffer_hits: int):
     """
     Scrapes the hyperlinks in hyperlink_buffer, first for child hyperlinks, then for content. Also updates HYPERLINKS_SCRAPED 
     and CONTENT_SCRAPED columns in database.
@@ -148,6 +148,8 @@ def process(rate_limits: list[int], last_refreshed_rate_limits: list[float], con
         hyperlink_buffer (list): buffer of scraped hyperlinks that are to be scraped (excess dumped when HYPERLINK_BUFFER_SIZE reached)
         scraped_count (int): total hyperlinks processed so far
         average_hyperlinks_per_page (float): metric
+        database_hits (int): metric for matches of hyperlink in database
+        buffer_hits (int): metric for matches of hyperlink in buffer
     """    
 
     while(utils.wait(PROCESS_FREQUENCY)):
@@ -171,9 +173,14 @@ def process(rate_limits: list[int], last_refreshed_rate_limits: list[float], con
                         for i in out_links: #list of children hyperlinks
                             status = search_buffer_for_hyperlink(hyperlink_buffer, hyperlink)
                             
+                            if status:
+                                buffer_hits.value = buffer_hits.value + 1
+
                             if not status:
                                 status = search_database_for_hyperlink(i) #check whether child already in database
 
+                                if status:
+                                    database_hits.value = database_hits.value + 1
                             if not status: #if not, add child to database and hyperlink buffer.
                                 
                                 out = Models.Hyperlink()
@@ -221,7 +228,7 @@ def process(rate_limits: list[int], last_refreshed_rate_limits: list[float], con
             
             hyperlink_buffer.append(hyperlink)
           
-def overseer(content_buffer: list, hyperlink_buffer: list, scraped_count: int, average_hyperlinks_per_page:float, ratelimits: list[int]):
+def overseer(content_buffer: list, hyperlink_buffer: list, scraped_count: int, average_hyperlinks_per_page:float, ratelimits: list[int], database_hits: int, buffer_hits: int):
         """
         Oversees the scraping process - flushes the buffers, implements wait, disposes of open database connections to return
         them to SQLAlchemy pool of connections
@@ -232,6 +239,8 @@ def overseer(content_buffer: list, hyperlink_buffer: list, scraped_count: int, a
             scraped_count (int): number of pages scraped/processed
             average_hyperlinks_per_page (float): metric
             ratelimits (list[int]): current rate limits
+            database_hits (int): metric for matches of hyperlink in database
+            buffer_hits (int): metric for matches of hyperlink in buffer
 
         """
         # content buffer needs to be flushed at max len, hyperlink buffer be dumped if over max len, 
@@ -274,7 +283,7 @@ def overseer(content_buffer: list, hyperlink_buffer: list, scraped_count: int, a
 
             count += 1
             if count == 15:
-                print("%d elements in content buffer. \n %d elements in hyperlink buffer \n %d total hyperlinks processed so far. \n %f average hyperlinks per page. \n %s -> rate limits." % (len(content_buffer), len(hyperlink_buffer), scraped_count.value, average_hyperlinks_per_page.value, str(ratelimits)))
+                print("%d elements in content buffer. \n %d elements in hyperlink buffer \n %d total hyperlinks processed so far. \n %f average hyperlinks per page. \n %s -> rate limits. \n %d -> total database hits. \n %d -> total buffer hits. \n %d -> ratio of databse to buffer hits." % (len(content_buffer), len(hyperlink_buffer), scraped_count.value, average_hyperlinks_per_page.value, str(ratelimits), database_hits.value, buffer_hits.value, database_hits.value/buffer_hits.value))
                 
                 count = 0
 
@@ -308,6 +317,10 @@ class WikiScraper:
 
         self.scraped_count = self.manager.Value("i", 0)
 
+        self.buffer_hits = self.manager.Value("d", 0)
+
+        self.database_hits = self.manager.Value("d", 0)
+
 # buffer <> -> P1 -> Links -> Content -> status
 #           -> P2 ->        -> Content -> 
 #                       1       1
@@ -322,11 +335,11 @@ class WikiScraper:
 
     def run(self):
 
-        OVERSEER = Process(target=overseer, args=(self.content_buffer, self.hyperlink_buffer, self.scraped_count, self.average_hyperlinks_per_page, self.rate_limits))
+        OVERSEER = Process(target=overseer, args=(self.content_buffer, self.hyperlink_buffer, self.scraped_count, self.average_hyperlinks_per_page, self.rate_limits, self.database_hits, self.buffer_hits))
         OVERSEER.start()
         
         for i in range(NUM_SCRAPER_PROCESS):
-            PROCESS = Process(target=process, args=(self.rate_limits, self.last_refreshed_rate_limits, self.content_buffer, self.hyperlink_buffer, self.scraped_count, self.average_hyperlinks_per_page))
+            PROCESS = Process(target=process, args=(self.rate_limits, self.last_refreshed_rate_limits, self.content_buffer, self.hyperlink_buffer, self.scraped_count, self.average_hyperlinks_per_page, self.database_hits, self.buffer_hits))
             PROCESS.start()
             self.process_list.append(PROCESS)
         
