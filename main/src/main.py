@@ -48,18 +48,6 @@ def insert_seed_url():
 
     session.close()
 
-def search_buffer_for_hyperlink(buffer: list[Models.Hyperlink], hyperlink: str):
-    """
-    Searches buffer to see if given hyperlink already scraped
-
-    Returns:
-        state (bool): True if hyperlink already in buffer.
-    """    
-    
-    for i in range(len(buffer)):
-        if buffer[i].HYPERLINK == hyperlink:
-            return True
-    return False
 
 def search_database_for_hyperlink(hyperlink: str):
     
@@ -167,23 +155,24 @@ def process(rate_limits: list[int], last_refreshed_rate_limits: list[float], con
                 
                 data = utils.get_bytes_from_page(hyperlink.HYPERLINK) #got the bytes
                 try:
-                    if not hyperlink.HYPERLINKS_SCRAPED:
+                    if not hyperlink.HYPERLINKS_SCRAPED: #---- what the fuck
                         
                         out_links = utils.screen_hyperlinks(hyperlink.HYPERLINK, utils.get_hyperlinks_from_page(data))
                         
                         average_hyperlinks_per_page.value =average_hyperlinks_per_page.value*0.5 + 0.5*len(out_links)
 
+
                         for i in out_links: #list of children hyperlinks
-                            status = search_buffer_for_hyperlink(hyperlink_buffer, hyperlink)
+                            # status = search_buffer_for_hyperlink(hyperlink_buffer, i) #check whether child already in buffer
                             
+                            # if status:
+                            #     buffer_hits.value = buffer_hits.value + 1
+
+                            # if not status: #if not, check database
+                            status = search_database_for_hyperlink(i) #check whether child already in database
+
                             if status:
-                                buffer_hits.value = buffer_hits.value + 1
-
-                            if not status:
-                                status = search_database_for_hyperlink(i) #check whether child already in database
-
-                                if status:
-                                    database_hits.value = database_hits.value + 1
+                                database_hits.value = database_hits.value + 1
                             if not status: #if not, add child to database and hyperlink buffer.
                                 
                                 out = Models.Hyperlink()
@@ -197,11 +186,11 @@ def process(rate_limits: list[int], last_refreshed_rate_limits: list[float], con
 
                                 hyperlink_buffer.insert(0, out)
 
-                                scraped_count.value = scraped_count.value + 1 #change to content block
+                         #change to content block
 
                         hyperlink.HYPERLINKS_SCRAPED = True #update in database
                         
-                    if not hyperlink.CONTENT_SCRAPED and False:
+                    if not hyperlink.CONTENT_SCRAPED:
                         try: # now content scraping -- add to content buffer
                         
                             heading, content = utils.get_content_from_page(data)
@@ -217,7 +206,7 @@ def process(rate_limits: list[int], last_refreshed_rate_limits: list[float], con
 
                             hyperlink.CONTENT_SCRAPED = True #update in database
 
-                            
+                            scraped_count.value = scraped_count.value + 1
                 
                         except Exception as e:
                             print(hyperlink.HYPERLINK, "CONTENT ERROR" + str(e))
@@ -289,7 +278,7 @@ def overseer(content_buffer: list, hyperlink_buffer: list, scraped_count: int, a
 
             count += 1
             if count == 15:
-                print("%d elements in content buffer. \n %d elements in hyperlink buffer \n %d total hyperlinks processed so far. \n %f average hyperlinks per page. \n %s -> rate limits. \n %d -> total database hits. \n %d -> total buffer hits. \n %d -> ratio of database to buffer hits." % (len(content_buffer), len(hyperlink_buffer), scraped_count.value, average_hyperlinks_per_page.value, str(ratelimits), database_hits.value, buffer_hits.value, database_hits.value/(buffer_hits.value+1)))
+                print("%d elements in content buffer. \n %d elements in hyperlink buffer \n %d total hyperlinks processed so far. \n %f average hyperlinks per page. \n %s -> rate limits. \n %d -> total database hits. \n %d -> total buffer hits. \n %d -> ratio of database to buffer hits." % (len(content_buffer), len(hyperlink_buffer), scraped_count.value, average_hyperlinks_per_page.value, str(ratelimits), database_hits.value, buffer_hits.value, database_hits.value/float(buffer_hits.value+1)))
                 
                 count = 0
 
