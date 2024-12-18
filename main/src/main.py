@@ -48,7 +48,7 @@ def insert_seed_url():
 
     session.close()
 
-def search_buffer_for_hyperlink(buffer: list[str], hyperlink: str):
+def search_buffer_for_hyperlink(buffer: list[Models.Hyperlink], hyperlink: str):
     """
     Searches buffer to see if given hyperlink already scraped
 
@@ -56,7 +56,10 @@ def search_buffer_for_hyperlink(buffer: list[str], hyperlink: str):
         state (bool): True if hyperlink already in buffer.
     """    
     
-    return hyperlink in buffer
+    for i in range(len(buffer)):
+        if buffer[i].HYPERLINK == hyperlink:
+            return True
+    return False
 
 def search_database_for_hyperlink(hyperlink: str):
     
@@ -194,6 +197,8 @@ def process(rate_limits: list[int], last_refreshed_rate_limits: list[float], con
 
                                 hyperlink_buffer.insert(0, out)
 
+                                scraped_count.value = scraped_count.value + 1 #change to content block
+
                         hyperlink.HYPERLINKS_SCRAPED = True #update in database
                         
                     if not hyperlink.CONTENT_SCRAPED and False:
@@ -212,7 +217,7 @@ def process(rate_limits: list[int], last_refreshed_rate_limits: list[float], con
 
                             hyperlink.CONTENT_SCRAPED = True #update in database
 
-                            scraped_count.value = scraped_count.value + 1
+                            
                 
                         except Exception as e:
                             print(hyperlink.HYPERLINK, "CONTENT ERROR" + str(e))
