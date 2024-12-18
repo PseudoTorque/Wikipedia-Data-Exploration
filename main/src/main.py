@@ -50,10 +50,11 @@ def insert_seed_url():
 
 def search_database_for_hyperlink(hyperlink: str):
     
-    """Searches database to see if given hyperlink already in database
+    """
+    Searches database to see if given hyperlink already in database
 
     Returns:
-        state: _description_
+        state (bool): True if hyperlink already in database.
     """    
     
     state = None
@@ -70,6 +71,12 @@ def search_database_for_hyperlink(hyperlink: str):
     return state # false if current hyperlink not in database
 
 def add_page_to_pages(pages: list[Models.Page]):
+    """
+    Save list of Models.Page to database in table Pages.
+
+    Args:
+        pages (list[Models.Page]): list of Models.Page to save to database.
+    """    
 
     session = DATABASE.createSession()
 
@@ -80,6 +87,15 @@ def add_page_to_pages(pages: list[Models.Page]):
     session.close()
 
 def load_hyperlink_from_hyperlinks(n: int):
+    """
+    Returns list of Models.Hyperlink objects from database (sorted by PARENT_PRIORITY column) which have not been scraped for hyperlinks OR for content.
+
+    Args:
+        n (int): number of urls to return
+
+    Returns:
+        list[Models.Hyperlink]: _description_
+    """    
     
     session = DATABASE.createSession()
 

@@ -122,10 +122,12 @@ def get_content_from_page(content: bytes):
     """
     
     parsed: BeautifulSoup = BeautifulSoup(content, "html5lib")
-
-
-    current_heading = parsed.find(name="span", attrs={"class":"mw-page-title-main"}).text
-
+# <h1 class="firstHeading mw-first-heading" <i>Bristol Post</i>
+    try:
+        current_heading = parsed.find(name="span", attrs={"class":"mw-page-title-main"}).text #was here before, works for most
+    except:
+        current_heading = parsed.find(name="h1", attrs={"class":"firstHeading mw-first-heading"}).text.lstrip("<i>").rstrip("</i>")
+        
     page_content_div_children = [i for i in parsed.find(name="div", attrs={"class": "mw-content-ltr mw-parser-output"}).children if i.name is not None] #thats a list of children
     
     page_content: list[BeautifulSoup] = []
