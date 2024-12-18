@@ -191,6 +191,14 @@ def wait(frequency: float):
 
 
 def refresh(RATELIMITS: list[int], rate_limits: list[int], last_refreshed_rate_limits: list[float]) -> None:
+    """
+    Refresh the rate limits
+
+    Args:
+        RATELIMITS (list[int]): Base rate limits
+        rate_limits (list[int]): current rate limits
+        last_refreshed_rate_limits (list[float]): timestamp when rate limits last refreshed
+    """    
     current_time = time()
 
     #refresh per second limit
@@ -216,6 +224,15 @@ def makeCall(rate_limits: list[int]) -> None:
         rate_limits[i] -= 1
 
 def isValidCall(rate_limits: list[int]) -> bool:
+    """
+    Check adherance of a call to the rate limits
+
+    Args:
+        rate_limits (list[int]): current rate limits
+
+    Returns:
+        bool: True if valid call
+    """    
 
     #check if the call doesn't exceed the rate limits and is valid.
     flag = None
@@ -227,6 +244,17 @@ def isValidCall(rate_limits: list[int]) -> bool:
     return flag
     
 def makeBlockingCall(RATELIMITS: list[int], rate_limits: list[int], last_refreshed_rate_limits: list[float]) -> None:
+    """
+    Block call if not adhering to rate limits.
+
+    Args:
+        RATELIMITS (list[int]): Base rate limits
+        rate_limits (list[int]): current rate limits
+        last_refreshed_rate_limits (list[float]): timestamp when rate limits last refreshed
+
+    Returns:
+        _type_: _description_
+    """    
     refresh(RATELIMITS, rate_limits, last_refreshed_rate_limits)
 
     #classic blocking call, blocks untill the call can be made adhering to the rate limits.
