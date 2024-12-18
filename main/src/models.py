@@ -12,11 +12,11 @@ class Models:
             __tablename__ = "Hyperlinks"
 
             ID = Column(Integer, primary_key = True)
-            PARENT_HYPERLINK = Column(String)
+            PARENT_HYPERLINK = Column(String, index = True)
             ATTEMPTS = Column(Integer)
             HYPERLINKS_SCRAPED = Column(Boolean)
             CONTENT_SCRAPED = Column(Boolean)
-            HYPERLINK = Column(String)
+            HYPERLINK = Column(String, index = True)
             PARENT_PRIORITY = Column(Integer)
             TIMESTAMP = Column(Float)
 

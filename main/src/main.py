@@ -27,106 +27,97 @@ DATABASE.createTables()
 def insert_seed_url():
     
     """
-    Inserts the seed URL into the Database. Continue scraping after this.
-    
-    """    
+    Inserts the seed URL into the Database to initiate scraping.
+    """
+    seed_hyperlink = Models.Hyperlink(
+        HYPERLINK=WIKI_SEED_URL,
+        ATTEMPTS=0,
+        HYPERLINKS_SCRAPED=False,
+        CONTENT_SCRAPED=False,
+        PARENT_HYPERLINK=None,
+        PARENT_PRIORITY=0,
+        TIMESTAMP=time()
+    )
 
-    out = Models.Hyperlink()
-    out.HYPERLINK = WIKI_SEED_URL
-    out.ATTEMPTS = 0
-    out.HYPERLINKS_SCRAPED = False
-    out.CONTENT_SCRAPED = False
-    out.PARENT_HYPERLINK = None
-    out.PARENT_PRIORITY = 0
-    out.TIMESTAMP = time()
+    with DATABASE.createSession() as session:
 
-    session = DATABASE.createSession()
+        session.add(seed_hyperlink)
 
-    session.add(out)
-
-    session.commit()
-
-    session.close()
+        session.commit()
 
 
 def search_database_for_hyperlink(hyperlink: str):
     
     """
-    Searches database to see if given hyperlink already in database
+    Checks if a given hyperlink already exists in the database.
+
+    Args:
+        hyperlink (str): The hyperlink to search for.
 
     Returns:
-        state (bool): True if hyperlink already in database.
-    """    
-    
-    state = None
+        bool: True if the hyperlink exists, False otherwise.
+    """
+    with DATABASE.createSession() as session:
 
-    session = DATABASE.createSession()
+        exists = session.query(DATABASE.MODELS.Hyperlink).filter(
+            DATABASE.MODELS.Hyperlink.HYPERLINK == hyperlink
+        ).first()
 
-    
-    query = session.query(DATABASE.MODELS.Hyperlink).filter(DATABASE.MODELS.Hyperlink.HYPERLINK==hyperlink)
-
-    state = False if list(query) == [] else True
-
-    session.close()
-    
-    return state # false if current hyperlink not in database
+        return exists is not None
 
 def add_page_to_pages(pages: list[Models.Page]):
     """
-    Save list of Models.Page to database in table Pages.
+    Bulk inserts a list of Page models into the database.
 
     Args:
-        pages (list[Models.Page]): list of Models.Page to save to database.
-    """    
+        pages (List[Models.Page]): List of Page objects to insert.
+    """
+    with DATABASE.createSession() as session:
 
-    session = DATABASE.createSession()
+        session.bulk_save_objects(pages)
 
-    session.bulk_save_objects(pages)
-
-    session.commit()
-
-    session.close()
+        session.commit()
 
 def load_hyperlink_from_hyperlinks(n: int):
     """
-    Returns list of Models.Hyperlink objects from database (sorted by PARENT_PRIORITY column) which have not been scraped for hyperlinks OR for content.
+    Retrieves a list of uns scraped hyperlinks from the database.
 
     Args:
-        n (int): number of urls to return
+        n (int): Number of hyperlinks to retrieve.
 
     Returns:
-        list[Models.Hyperlink]: List from database, sorted by PARENT_PRIORITY column
-    """    
-    
-    session = DATABASE.createSession()
+        List[Models.Hyperlink]: List of Hyperlink objects.
+    """
+    with DATABASE.createSession() as session:
 
-    query = session.query(DATABASE.MODELS.Hyperlink).filter(DATABASE.MODELS.Hyperlink.HYPERLINKS_SCRAPED == False or DATABASE.MODELS.Hyperlink.CONTENT_SCRAPED == False)
-    
-    out =  sorted(list(query), key= lambda x: x.PARENT_PRIORITY, reverse=True)[:n+1]
+        query = session.query(DATABASE.MODELS.Hyperlink).filter(
+            (DATABASE.MODELS.Hyperlink.HYPERLINKS_SCRAPED == False) |
+            (DATABASE.MODELS.Hyperlink.CONTENT_SCRAPED == False)
+        )
 
-    query.delete()
+        hyperlinks = query.all()
 
-    session.commit()
+        temp = sorted(hyperlinks[0:n+1], key= lambda x: x.PARENT_PRIORITY, reverse=True)
 
-    session.close()
+        query.delete()
 
-    return out
+        session.commit()
+
+        return temp
 
 def add_hyperlink_to_hyperlinks(hyperlinks: list[Models.Hyperlink]):
     """
-    Saves list of Models.Hyperlink objects to database
+    Bulk inserts a list of Hyperlink models into the database.
 
     Args:
-        hyperlinks (list[Models.Hyperlink]): List of Models.Hyperlink objects to be saved
-    """    
+        hyperlinks (List[Models.Hyperlink]): List of Hyperlink objects to insert.
+    """
+    with DATABASE.createSession() as session:
 
-    session = DATABASE.createSession()
+        session.bulk_save_objects(hyperlinks)
+        
+        session.commit()
 
-    session.bulk_save_objects(hyperlinks)
-
-    session.commit()
-
-    session.close()
 def process(rate_limits: list[int], last_refreshed_rate_limits: list[float], content_buffer: list, hyperlink_buffer: list, scraped_count: int, average_hyperlinks_per_page: float, database_hits: int, buffer_hits: int):
     """
     Scrapes the hyperlinks in hyperlink_buffer, first for child hyperlinks, then for content. Also updates HYPERLINKS_SCRAPED 
@@ -153,40 +144,41 @@ def process(rate_limits: list[int], last_refreshed_rate_limits: list[float], con
                 
                 utils.makeBlockingCall(RATELIMITS, rate_limits, last_refreshed_rate_limits)
                 
-                data = utils.get_bytes_from_page(hyperlink.HYPERLINK) #got the bytes
+                data = utils.get_bytes_from_page(hyperlink.HYPERLINK) 
                 try:
-                    if not hyperlink.HYPERLINKS_SCRAPED: #---- what the fuck
+                    if not hyperlink.HYPERLINKS_SCRAPED:
                         
                         out_links = utils.screen_hyperlinks(hyperlink.HYPERLINK, utils.get_hyperlinks_from_page(data))
-                        
-                        average_hyperlinks_per_page.value =average_hyperlinks_per_page.value*0.5 + 0.5*len(out_links)
 
+                        average_hyperlinks_per_page.value =average_hyperlinks_per_page.value*0.1 + 0.9*len(out_links)
 
-                        for i in out_links: #list of children hyperlinks
-                            # status = search_buffer_for_hyperlink(hyperlink_buffer, i) #check whether child already in buffer
-                            
-                            # if status:
-                            #     buffer_hits.value = buffer_hits.value + 1
+                        new_hyperlinks = []
 
-                            # if not status: #if not, check database
-                            status = search_database_for_hyperlink(i) #check whether child already in database
+                        for link in out_links:
 
-                            if status:
-                                database_hits.value = database_hits.value + 1
-                            if not status: #if not, add child to database and hyperlink buffer.
-                                
-                                out = Models.Hyperlink()
-                                out.PARENT_HYPERLINK = hyperlink.HYPERLINK
-                                out.ATTEMPTS = 0
-                                out.HYPERLINKS_SCRAPED = False
-                                out.CONTENT_SCRAPED = False
-                                out.HYPERLINK = i
-                                out.PARENT_PRIORITY = len(data)
-                                out.TIMESTAMP = time()
+                            if not search_database_for_hyperlink(link):
 
-                                hyperlink_buffer.insert(0, out)
+                                new_hyperlink = Models.Hyperlink(
+                                    PARENT_HYPERLINK=hyperlink.HYPERLINK,
+                                    ATTEMPTS=0,
+                                    HYPERLINKS_SCRAPED=False,
+                                    CONTENT_SCRAPED=False,
+                                    HYPERLINK=link,
+                                    PARENT_PRIORITY=len(data),
+                                    TIMESTAMP=time()
+                                )
 
-                         #change to content block
+                                new_hyperlinks.append(new_hyperlink)
+
+                            else:
+
+                                database_hits.value += 1
+
+                        if new_hyperlinks:
+
+                            for i in new_hyperlinks:
+
+                                hyperlink_buffer.insert(0, i)
 
                         hyperlink.HYPERLINKS_SCRAPED = True #update in database
                         
@@ -277,9 +269,17 @@ def overseer(content_buffer: list, hyperlink_buffer: list, scraped_count: int, a
                 add_hyperlink_to_hyperlinks(temp)
 
             count += 1
-            if count == 15:
-                print("%d elements in content buffer. \n %d elements in hyperlink buffer \n %d total hyperlinks processed so far. \n %f average hyperlinks per page. \n %s -> rate limits. \n %d -> total database hits. \n %d -> total buffer hits. \n %d -> ratio of database to buffer hits." % (len(content_buffer), len(hyperlink_buffer), scraped_count.value, average_hyperlinks_per_page.value, str(ratelimits), database_hits.value, buffer_hits.value, database_hits.value/float(buffer_hits.value+1)))
-                
+            if count >= 15:
+                print(
+                    f"{len(content_buffer)} -> elements in content buffer.\n",
+                    f"{len(hyperlink_buffer)} -> elements in hyperlink buffer.\n",
+                    f"{scraped_count.value} -> total hyperlinks processed so far.\n",
+                    f"{average_hyperlinks_per_page.value:.2f} -> average hyperlinks per page.\n",
+                    f"{ratelimits} -> rate limits.\n",
+                    f"{database_hits.value} -> total database hits.\n",
+                    f"{buffer_hits.value} -> total buffer hits.\n",
+                    f"{database_hits.value / (buffer_hits.value + 1):.2f} -> ratio of database to buffer hits."
+                )
                 count = 0
 
             DATABASE.ENGINE.dispose()
