@@ -304,7 +304,7 @@ class WikiScraper:
 
         self.overseer = None
 
-        self.average_hyperlinks_per_age = self.manager.Value("d", 0)
+        self.average_hyperlinks_per_page = self.manager.Value("d", 0)
 
         self.scraped_count = self.manager.Value("i", 0)
 
