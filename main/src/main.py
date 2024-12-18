@@ -48,6 +48,16 @@ def insert_seed_url():
 
     session.close()
 
+def search_buffer_for_hyperlink(buffer: list[str], hyperlink: str):
+    """
+    Searches buffer to see if given hyperlink already scraped
+
+    Returns:
+        state (bool): True if hyperlink already in buffer.
+    """    
+    
+    return hyperlink in buffer
+
 def search_database_for_hyperlink(hyperlink: str):
     
     """
@@ -94,7 +104,7 @@ def load_hyperlink_from_hyperlinks(n: int):
         n (int): number of urls to return
 
     Returns:
-        list[Models.Hyperlink]: _description_
+        list[Models.Hyperlink]: List from database, sorted by PARENT_PRIORITY column
     """    
     
     session = DATABASE.createSession()
@@ -112,6 +122,12 @@ def load_hyperlink_from_hyperlinks(n: int):
     return out
 
 def add_hyperlink_to_hyperlinks(hyperlinks: list[Models.Hyperlink]):
+    """
+    Saves list of Models.Hyperlink objects to database
+
+    Args:
+        hyperlinks (list[Models.Hyperlink]): List of Models.Hyperlink objects to be saved
+    """    
 
     session = DATABASE.createSession()
 
@@ -121,6 +137,17 @@ def add_hyperlink_to_hyperlinks(hyperlinks: list[Models.Hyperlink]):
 
     session.close()
 def process(rate_limits: list[int], last_refreshed_rate_limits: list[float], content_buffer: list, hyperlink_buffer: list, scraped_count: int):
+    """
+    Scrapes the hyperlinks in hyperlink_buffer, first for child hyperlinks, then for content. Also updates HYPERLINKS_SCRAPED 
+    and CONTENT_SCRAPED columns in database.
+
+    Args:
+        rate_limits (list[int]): current rate limits for requests, per second, minute, and hour
+        last_refreshed_rate_limits (list[float]): timestamps when rate_limits were last refreshed, per second, minute, and hour
+        content_buffer (list): buffer of scraped content (to be flushed to database when CONTENT_BUFFER_SIZE reached)
+        hyperlink_buffer (list): buffer of scraped hyperlinks that are to be scraped (excess dumped when HYPERLINK_BUFFER_SIZE reached)
+        scraped_count (int): total hyperlinks processed so far
+    """    
 
     while(utils.wait(PROCESS_FREQUENCY)):
 
@@ -137,8 +164,10 @@ def process(rate_limits: list[int], last_refreshed_rate_limits: list[float], con
                     if not hyperlink.HYPERLINKS_SCRAPED:
 
                         for i in utils.screen_hyperlinks(hyperlink.HYPERLINK, utils.get_hyperlinks_from_page(data)): #list of children hyperlinks
+                            status = search_buffer_for_hyperlink(hyperlink_buffer, hyperlink)
                             
-                            status = search_database_for_hyperlink(i) #check whether child already in database
+                            if not status:
+                                status = search_database_for_hyperlink(i) #check whether child already in database
 
                             if not status: #if not, add child to database and hyperlink buffer.
                                 
@@ -188,6 +217,16 @@ def process(rate_limits: list[int], last_refreshed_rate_limits: list[float], con
             hyperlink_buffer.append(hyperlink)
           
 def overseer(content_buffer: list, hyperlink_buffer: list, scraped_count: int, ratelimits: list[int]):
+        """
+        Oversees the scraping process - flushes the buffers, implements wait, disposes of open database connections to return
+        them to SQLAlchemy pool of connections
+
+        Args:
+            content_buffer (list): _description_
+            hyperlink_buffer (list): _description_
+            scraped_count (int): _description_
+            ratelimits (list[int]): _description_
+         """      
         # content buffer needs to be flushed at max len, hyperlink buffer be dumped if over max len, 
         # -- check content buffer
         # -- flush content buffer
