@@ -195,7 +195,8 @@ def process(rate_limits: list[int], last_refreshed_rate_limits: list[float], con
                                 hyperlink_buffer.insert(0, out)
 
                         hyperlink.HYPERLINKS_SCRAPED = True #update in database
-                    if not hyperlink.CONTENT_SCRAPED:
+                        
+                    if not hyperlink.CONTENT_SCRAPED and False:
                         try: # now content scraping -- add to content buffer
                         
                             heading, content = utils.get_content_from_page(data)
@@ -283,7 +284,7 @@ def overseer(content_buffer: list, hyperlink_buffer: list, scraped_count: int, a
 
             count += 1
             if count == 15:
-                print("%d elements in content buffer. \n %d elements in hyperlink buffer \n %d total hyperlinks processed so far. \n %f average hyperlinks per page. \n %s -> rate limits. \n %d -> total database hits. \n %d -> total buffer hits. \n %d -> ratio of databse to buffer hits." % (len(content_buffer), len(hyperlink_buffer), scraped_count.value, average_hyperlinks_per_page.value, str(ratelimits), database_hits.value, buffer_hits.value, database_hits.value/buffer_hits.value))
+                print("%d elements in content buffer. \n %d elements in hyperlink buffer \n %d total hyperlinks processed so far. \n %f average hyperlinks per page. \n %s -> rate limits. \n %d -> total database hits. \n %d -> total buffer hits. \n %d -> ratio of database to buffer hits." % (len(content_buffer), len(hyperlink_buffer), scraped_count.value, average_hyperlinks_per_page.value, str(ratelimits), database_hits.value, buffer_hits.value, database_hits.value/(buffer_hits.value+1)))
                 
                 count = 0
 
